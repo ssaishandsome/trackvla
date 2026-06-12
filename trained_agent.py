@@ -12,6 +12,7 @@ import os
 import os.path as osp
 import imageio
 import json
+import traceback
 import torch
 from typing import Optional, List
 from collections import deque
@@ -255,6 +256,11 @@ class GTBBoxAgent(AgentConfig):
         # Prefer planner action (train_planner) if available, then TrackVLA, else PID
         planner_action = self._planner_action(rgb_, instruction)
         action = planner_action
+        if action is None:
+            # 避免把 None 传给 Habitat 动作接口导致直接崩溃。
+            # 这里先保守回退为静止动作，同时把真正错误交给 _planner_action 内部日志打印。
+            action = [0.0, 0.0, 0.0]
+            print("[planner] planner_action is None, fallback to zero velocity action.")
         
         print (f"Planner action: {action}")
 
@@ -267,13 +273,15 @@ class GTBBoxAgent(AgentConfig):
 
     def _ensure_vision_cache(self):
         if VisionFeatureCacher is None or VisionCacheConfig is None:
+            print(f"[planner] Vision cache is not available")
             return None
         if self._vision_cache is None:
             try:
                 cfg = VisionCacheConfig(image_size=384, batch_size=1, device=('cuda' if torch.cuda.is_available() else 'cpu'))
                 self._vision_cache = VisionFeatureCacher(cfg)
                 self._vision_cache.eval()
-            except Exception:
+            except Exception as e:
+                print(f"[planner] Failed to initialize vision cache: {e}")
                 self._vision_cache = None
         return self._vision_cache
 
@@ -397,10 +405,12 @@ class GTBBoxAgent(AgentConfig):
         Vc, Vf = self._encode_frame_tokens(rgb_frame_np)
         if Vc is None or Vf is None:
             self._last_predicted_traj = None
+            print(f"[planner] Frame encoding failed")
             return None
         # Require planner model to be initialized once
         if self.planner_model is None:
             self._last_predicted_traj = None
+            print(f"[planner] Planner model is not initialized")
             return None
         try:
             # Append current coarse tokens to history
@@ -446,8 +456,10 @@ class GTBBoxAgent(AgentConfig):
             print (f"Planner action: {vx}, {vy}, {wz}")
             return [float(vx), float(vy), float(wz)]
             
-        except Exception:
+        except Exception as exc:
             self._last_predicted_traj = None
+            print(f"[planner] _planner_action failed: {exc}")
+            traceback.print_exc()
             return None
 
     def _render_frame_with_traj(self, rgb_frame_np: np.ndarray, traj_xyz: Optional[np.ndarray]) -> np.ndarray:

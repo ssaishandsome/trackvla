@@ -1,21 +1,79 @@
-habitat-lab
-data/humanoids
-data/sample
-data/scene_datasets
-ckpt_qwen5
+# -----------------------------------------------------------------------------
+# Python cache / build
+# -----------------------------------------------------------------------------
 __pycache__/
-*.pyc
-__pycache__
-trackvla_vis/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+build/
+dist/
+*.egg-info/
 
-outputs/
-logs/
+# -----------------------------------------------------------------------------
+# Editor / OS
+# -----------------------------------------------------------------------------
+.DS_Store
+.idea/
+.vscode/
+
+# -----------------------------------------------------------------------------
+# Large data / assets
+# -----------------------------------------------------------------------------
+habitat-lab/
+data/humanoids/
+data/sample/
+data/scene_datasets/
+data/datasets/
+
+# -----------------------------------------------------------------------------
+# Model weights / downloaded checkpoints
+# -----------------------------------------------------------------------------
+hf_downloads/
+open_trackvla_hf/*.bin
+open_trackvla_hf/*.safetensors
 ckpt*/
+ckpt_qwen5/
+trackvla_vis/
 
 *.pt
 *.pth
 *.bin
 *.safetensors
+*.ckpt
 
+# -----------------------------------------------------------------------------
+# Array / cache artifacts
+# -----------------------------------------------------------------------------
 *.npy
 *.npz
+*.pkl
+*.pickle
+
+# -----------------------------------------------------------------------------
+# Logs / outputs / videos / eval artifacts
+# -----------------------------------------------------------------------------
+outputs/
+logs/
+sim_data/
+infer_out/
+infer_debug/
+wandb/
+
+*.mp4
+*.avi
+*.mov
+*.gif
+*.jpg
+*.jpeg
+*.png
+*.webp
+
+# -----------------------------------------------------------------------------
+# Notebook / local notes
+# -----------------------------------------------------------------------------
+notebook/

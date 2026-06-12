@@ -12,8 +12,18 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 from transformers import AutoImageProcessor, AutoModel
-from transformers import SiglipVisionModel, SiglipImageProcessor
 from PIL import Image
+
+try:
+    # 优先走显式的 SigLIP 类；不同 transformers 版本里顶层导出可能不稳定。
+    from transformers import SiglipVisionModel, SiglipImageProcessor
+except Exception:
+    # 回退到子模块导入；若仍失败，后面会再退回 Auto* 接口。
+    try:
+        from transformers.models.siglip import SiglipVisionModel, SiglipImageProcessor
+    except Exception:
+        SiglipVisionModel = None
+        SiglipImageProcessor = None
 
 def ensure_dir(p: str) -> None:
     os.makedirs(p, exist_ok=True)
@@ -210,7 +220,7 @@ def adapt_siglip_grid(tokens: torch.Tensor, grid_hw: Optional[Tuple[int, int]] =
 @dataclass
 class VisionCacheConfig:
     dino_model_name: str = None  # Will be set from env or default
-    siglip_model_name: str = "google/siglip-so400m-patch14-384"
+    siglip_model_name: str = None  # Will be set from env or default
     image_size: int = 384          # enforce 384 for both towers
     batch_size: int = 24
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
@@ -218,13 +228,20 @@ class VisionCacheConfig:
     force_square_resize: bool = True    # ensure exact 384x384
     
     def __post_init__(self):
-        # Check environment variable for local DINOv3 model path
+        # 优先从环境变量读取本地 DINOv3 路径，否则回退到默认 HF repo id
         if self.dino_model_name is None:
             env_path = os.getenv("DINOV3_MODEL_PATH", "").strip()
             if env_path and os.path.exists(env_path):
                 self.dino_model_name = env_path
             else:
                 self.dino_model_name = "facebook/dinov3-vits16-pretrain-lvd1689m"
+        # SigLIP 也支持同样的本地路径覆盖逻辑
+        if self.siglip_model_name is None:
+            env_path = os.getenv("SIGLIP_MODEL_PATH", "").strip()
+            if env_path and os.path.exists(env_path):
+                self.siglip_model_name = env_path
+            else:
+                self.siglip_model_name = "google/siglip-so400m-patch14-384"
 
 
 class VisionFeatureCacher(nn.Module):
@@ -241,8 +258,19 @@ class VisionFeatureCacher(nn.Module):
         self.dino_regs = int(getattr(self.dino.config, 'num_register_tokens', 0) or 0)
         self.dino_hidden = getattr(self.dino.config, 'hidden_size', 384)
         # SigLIP (vision)
-        self.siglip_proc = SiglipImageProcessor.from_pretrained(cfg.siglip_model_name)
-        self.siglip = SiglipVisionModel.from_pretrained(cfg.siglip_model_name)
+        # 这里做兼容处理：
+        # - 新/完整环境下直接用 SiglipVisionModel + SiglipImageProcessor
+        # - 若顶层导入异常，则退回 AutoImageProcessor / AutoModel
+        if SiglipImageProcessor is not None:
+            self.siglip_proc = SiglipImageProcessor.from_pretrained(cfg.siglip_model_name)
+        else:
+            self.siglip_proc = AutoImageProcessor.from_pretrained(cfg.siglip_model_name)
+
+        if SiglipVisionModel is not None:
+            self.siglip = SiglipVisionModel.from_pretrained(cfg.siglip_model_name)
+        else:
+            self.siglip = AutoModel.from_pretrained(cfg.siglip_model_name)
+
         self.siglip.eval().to(self.device)
         self.siglip_hidden = getattr(self.siglip.config, 'hidden_size', 1152)
 
@@ -505,4 +533,3 @@ if __name__ == "__main__":
             projector = CrossModalityProjector(in_dim=Vfine.shape[-1], out_dim=256)
             EVfine = projector(Vfine.float())  # (V, 64, 256)
             print("Projected tokens shape:", tuple(EVfine.shape))
-

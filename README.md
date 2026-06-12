@@ -176,7 +176,7 @@ python train.py \
 
 `eval.sh` fans Habitat-based rollouts across configurable chunks and expects `CKPT`, `HF_MODEL_ID`, or `HF_MODEL_DIR` to define which weights to load. Outputs land under `sim_data/eval/<task>` alongside per-episode videos and metrics. Use `bash kill_eval.sh` to cleanly terminate all spawned jobs.
 
-### 5.1 Using the Pre-trained 0.6B Model
+### 5.1 Using the Pre-trained 0.6B Model 使用预训练的模型推理
 - **Option A — Auto-download**
   ```bash
   HF_MODEL_ID=omlab/opentrackvla-qwen06b bash eval.sh
@@ -189,7 +189,7 @@ python train.py \
 
 ### 5.2 Evaluating Custom Checkpoints
 
-Point `CKPT` at any artifact produced by `train.py`:
+Point `CKPT` at any artifact produced by `train.py`: 使用自己微调出来的模型推理 
 
 ```bash
 CKPT=/path/to/model_epoch05_step009000.pt bash eval.sh
